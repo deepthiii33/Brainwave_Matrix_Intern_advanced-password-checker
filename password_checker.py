@@ -36,9 +36,24 @@ def has_common_pattern(password):
         r"(?:19|20)\d{2}",  # years like 1999, 2023
     ]
     for pattern in patterns:
-        if re.search(pattern, password):
+        if re.search(pattern, password, re.IGNORECASE):
             return True
     return False
+
+def detect_common_words(password):
+    # Small sample of common words/names — you can expand this list
+    common_words = ['password', 'admin', 'welcome', 'login', 'user', 'letmein', 'deepthi', 'test', 'root']
+    for word in common_words:
+        if word in password.lower():
+            return word
+    return None
+
+def detect_keyboard_patterns(password):
+    keyboard_patterns = ["qwerty", "asdfgh", "zxcvbn", "12345", "09876"]
+    for pattern in keyboard_patterns:
+        if pattern in password.lower():
+            return pattern
+    return None
 
 def calculate_entropy(password):
     charset = 0
@@ -82,7 +97,6 @@ def get_strength_level(entropy):
 def main():
     print(Fore.CYAN + Style.BRIGHT +" \n🔐 Welcome to the Advanced Password Strength Checker\n")
 
-
     password = input("Enter your password: ")
 
     print("\n🔄 Checking against known breached passwords...")
@@ -104,6 +118,16 @@ def main():
     print("\n🔑 Estimated Crack Times:")
     for attack_type, time in crack_times.items():
         print(f" - {attack_type}: {time}")
+
+    # New: Common word detection
+    common_word = detect_common_words(password)
+    if common_word:
+        print(Fore.RED + "⚠️  Warning: Your password contains a common name or word, making it easier to guess.")
+
+    # New: Keyboard pattern detection
+    keyboard_pattern = detect_keyboard_patterns(password)
+    if keyboard_pattern:
+        print(Fore.RED + f"⚠️  Warning: Your password contains the weak keyboard pattern '{keyboard_pattern}'")
 
     if has_common_pattern(password):
         print(Fore.RED + "⚠️  Warning: Avoid common patterns like '123456', 'qwerty', or repeated characters.")
