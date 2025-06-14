@@ -1,6 +1,7 @@
-import math
 import re
 import os
+import hashlib
+import requests
 from colorama import Fore, Style, init
 
 init(autoreset=True)
@@ -11,6 +12,60 @@ def load_rockyou_passwords(path="/usr/share/wordlists/rockyou.txt"):
         return set()
     with open(path, "r", encoding="latin-1", errors="ignore") as f:
         return set(line.strip() for line in f)
+
+def normalize_leet(password):
+    substitutions = {
+        '@': 'a', '0': 'o', '1': 'l', '$': 's', '3': 'e', '4': 'a', '5': 's', '7': 't', '!': 'i'
+    }
+    normalized = password.lower()
+    for k, v in substitutions.items():
+        normalized = normalized.replace(k, v)
+    return normalized
+
+def detect_common_words(password):
+    common_words = ['password', 'admin', 'welcome', 'login', 'user', 'letmein', 'deepthi', 'test', 'root', 'toor']
+    normalized = normalize_leet(password)
+    for word in common_words:
+        if word in normalized:
+            return word
+    return None
+
+def detect_keyboard_patterns(password):
+    keyboard_patterns = ["qwerty", "asdfgh", "zxcvbn", "12345", "09876"]
+    for pattern in keyboard_patterns:
+        if pattern in password.lower():
+            return pattern
+    return None
+
+def has_common_pattern(password):
+    patterns = [
+        "123456", "abcdef", "qwerty", "asdfgh", "password", "iloveyou",
+        r"(.)\1{2,}",  # repeated chars like aaaaa
+        r"\d{4,}",     # 4+ digit sequences
+        r"(?:19|20)\d{2}",  # years like 1999, 2023
+    ]
+    for pattern in patterns:
+        if re.search(pattern, password, re.IGNORECASE):
+            return True
+    return False
+
+def get_strength_level(password):
+    length = len(password)
+    has_upper = bool(re.search(r'[A-Z]', password))
+    has_lower = bool(re.search(r'[a-z]', password))
+    has_digit = bool(re.search(r'[0-9]', password))
+    has_special = bool(re.search(r'[^A-Za-z0-9]', password))
+
+    score = sum([has_upper, has_lower, has_digit, has_special])
+
+    if length < 8 or score < 2:
+        return "Very Weak 🔴"
+    elif length < 10 or score < 3:
+        return "Weak 🟠"
+    elif length >= 12 and score == 4:
+        return "Strong 🟢"
+    else:
+        return "Medium 🟡"
 
 def get_password_feedback(password):
     suggestions = []
@@ -28,106 +83,56 @@ def get_password_feedback(password):
         suggestions.append("Avoid repeating the same character multiple times")
     return suggestions
 
-def has_common_pattern(password):
-    patterns = [
-        "123456", "abcdef", "qwerty", "asdfgh", "password", "iloveyou",
-        r"(.)\1{2,}",  # repeated chars like aaaaa
-        r"\d{4,}",     # 4+ digit sequences
-        r"(?:19|20)\d{2}",  # years like 1999, 2023
-    ]
-    for pattern in patterns:
-        if re.search(pattern, password, re.IGNORECASE):
+def check_hibp(password):
+    sha1 = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+    prefix, suffix = sha1[:5], sha1[5:]
+    url = f"https://api.pwnedpasswords.com/range/{prefix}"
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+    except requests.RequestException:
+        return -1  # Error occurred during API request
+    hashes = (line.split(':') for line in response.text.splitlines())
+    for h, _ in hashes:
+        if h == suffix:
             return True
     return False
 
-def detect_common_words(password):
-    # Small sample of common words/names — you can expand this list
-    common_words = ['password', 'admin', 'welcome', 'login', 'user', 'letmein', 'deepthi', 'test', 'root']
-    for word in common_words:
-        if word in password.lower():
-            return word
-    return None
-
-def detect_keyboard_patterns(password):
-    keyboard_patterns = ["qwerty", "asdfgh", "zxcvbn", "12345", "09876"]
-    for pattern in keyboard_patterns:
-        if pattern in password.lower():
-            return pattern
-    return None
-
-def calculate_entropy(password):
-    charset = 0
-    if re.search(r'[a-z]', password): charset += 26
-    if re.search(r'[A-Z]', password): charset += 26
-    if re.search(r'[0-9]', password): charset += 10
-    if re.search(r'[^A-Za-z0-9]', password): charset += 32
-    if charset == 0: return 0
-    return len(password) * math.log2(charset)
-
-def estimate_crack_times(entropy):
-    guesses_per_sec = {
-        "Online attack (1k guesses/sec)": 1e3,
-        "Offline fast attack (1B guesses/sec)": 1e9,
-        "Supercomputer attack (100B guesses/sec)": 1e11,
-    }
-    results = {}
-    total_guesses = 2 ** entropy
-    for attack_type, rate in guesses_per_sec.items():
-        seconds = total_guesses / rate
-        if seconds < 1:
-            results[attack_type] = "less than 1 second"
-        elif seconds < 60:
-            results[attack_type] = f"{int(seconds)} seconds"
-        elif seconds < 3600:
-            results[attack_type] = f"{int(seconds / 60)} minutes"
-        elif seconds < 86400:
-            results[attack_type] = f"{int(seconds / 3600)} hours"
-        elif seconds < 31536000:
-            results[attack_type] = f"{int(seconds / 86400)} days"
-        else:
-            results[attack_type] = f"{int(seconds / 31536000)} years"
-    return results
-
-def get_strength_level(entropy):
-    if entropy < 28: return "Very Weak 🔴"
-    elif entropy < 36: return "Weak 🟠"
-    elif entropy < 60: return "Medium 🟡"
-    else: return "Strong 🟢"
-
 def main():
-    print(Fore.CYAN + Style.BRIGHT +" \n🔐 Welcome to the Advanced Password Strength Checker\n")
+    print(Fore.CYAN + Style.BRIGHT + "\n🔐 Welcome to the Password Strength Checker\n")
 
     password = input("Enter your password: ")
 
-    print("\n🔄 Checking against known breached passwords...")
+    breached = False
+    print("\n🔄 Checking against online breached databases...")
+    hibp_result = check_hibp(password)
+    if hibp_result == -1:
+        print(Fore.YELLOW + "⚠️  Could not connect to online breach database (HaveIBeenPwned)")
+    elif hibp_result:
+        print(Fore.RED + f"❌ Found in online breach database")
+        breached = True
+    else:
+        print(Fore.GREEN + "✅ Not found in online breach database")
+
+    print("\n🔄 Checking against known breached passwords (rockyou.txt)...")
     rockyou = load_rockyou_passwords()
+    if password in rockyou:
+        print(Fore.RED + "❌ This password has been found in local breached password list")
+        breached = True
+    else:
+        print(Fore.GREEN + "✅ Password not found in local breached list")
 
     print("\n🔍 Analysis Results:")
-    if password in rockyou:
-        print(Fore.RED + "❌ This password has been found in previous data breaches")
-    else:
-        print(Fore.GREEN + "✅ Password not found in breached list")
-
-    entropy = calculate_entropy(password)
-    strength = get_strength_level(entropy)
-
-    print(f"\nEntropy: {entropy:.2f} bits")
+    strength = get_strength_level(password)
     print(f"Strength: {strength}")
 
-    crack_times = estimate_crack_times(entropy)
-    print("\n🔑 Estimated Crack Times:")
-    for attack_type, time in crack_times.items():
-        print(f" - {attack_type}: {time}")
-
-    # New: Common word detection
     common_word = detect_common_words(password)
     if common_word:
-        print(Fore.RED + "⚠️  Warning: Your password contains a common name or word, making it easier to guess.")
+        print(Fore.RED + f"⚠️  Warning: Your password contains a common word or name")
 
-    # New: Keyboard pattern detection
     keyboard_pattern = detect_keyboard_patterns(password)
     if keyboard_pattern:
-        print(Fore.RED + f"⚠️  Warning: Your password contains the weak keyboard pattern '{keyboard_pattern}'")
+        print(Fore.RED + f"⚠️  Warning: Your password contains the weak keyboard pattern")
 
     if has_common_pattern(password):
         print(Fore.RED + "⚠️  Warning: Avoid common patterns like '123456', 'qwerty', or repeated characters.")
@@ -140,6 +145,8 @@ def main():
     else:
         print(Fore.GREEN + "\n✅ Your password is well-structured!")
 
+    if strength.startswith("Very Weak") or breached:
+        print(Fore.RED + "\n❗ Recommendation: Do NOT use this password. Please choose a stronger one.")
+
 if __name__ == "__main__":
     main()
-
