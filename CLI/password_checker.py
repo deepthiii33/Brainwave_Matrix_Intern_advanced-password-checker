@@ -38,16 +38,21 @@ def detect_keyboard_patterns(password):
     return None
 
 def has_common_pattern(password):
-    patterns = [
-        "123456", "abcdef", "qwerty", "asdfgh", "password", "iloveyou",
-        r"(.)\1{2,}",  # repeated chars like aaaaa
-        r"\d{4,}",     # 4+ digit sequences
-        r"(?:19|20)\d{2}",  # years like 1999, 2023
-    ]
-    for pattern in patterns:
-        if re.search(pattern, password, re.IGNORECASE):
-            return True
-    return False
+    patterns = {
+        "123456": "Consecutive numbers → '123456'",
+        "abcdef": "Consecutive letters → 'abcdef'",
+        "qwerty": "Keyboard pattern → 'qwerty'",
+        "asdfgh": "Keyboard pattern → 'asdfgh'",
+        "password": "Common word → 'password'",
+        r"(.)\1{2,}": "Repeated character → '{}'",
+        r"\d{4,}": "4+ digit sequence → '{}'",
+        r"(?:19|20)\d{2}": "Year-like number → '{}'",
+    }
+    for pattern, desc in patterns.items():
+        match = re.search(pattern, password, re.IGNORECASE)
+        if match:
+            return desc.format(match.group(0))
+    return None
 
 def get_strength_level(password):
     length = len(password)
@@ -79,8 +84,9 @@ def get_password_feedback(password):
         suggestions.append("Add a number")
     if not re.search(r'[^A-Za-z0-9]', password):
         suggestions.append("Add a special character (!@#$...)")
-    if re.search(r"(.)\1{2,}", password):
-        suggestions.append("Avoid repeating the same character multiple times")
+    repeated = re.search(r"(.)\1{2,}", password)
+    if repeated:
+        suggestions.append(f"Avoid repeating the same character → '{repeated.group(0)}'")
     return suggestions
 
 def check_hibp(password):
@@ -91,7 +97,7 @@ def check_hibp(password):
         response = requests.get(url, timeout=5)
         response.raise_for_status()
     except requests.RequestException:
-        return -1  # Error occurred during API request
+        return -1
     hashes = (line.split(':') for line in response.text.splitlines())
     for h, _ in hashes:
         if h == suffix:
@@ -128,14 +134,15 @@ def main():
 
     common_word = detect_common_words(password)
     if common_word:
-        print(Fore.RED + f"⚠️  Warning: Your password contains a common word or name")
+        print(Fore.RED + f"⚠️  Warning: Your password is similar to the common word → '{common_word}'")
 
     keyboard_pattern = detect_keyboard_patterns(password)
     if keyboard_pattern:
-        print(Fore.RED + f"⚠️  Warning: Your password contains the weak keyboard pattern")
+        print(Fore.RED + f"⚠️  Warning: Your password contains the weak keyboard pattern → '{keyboard_pattern}'")
 
-    if has_common_pattern(password):
-        print(Fore.RED + "⚠️  Warning: Avoid common patterns like '123456', 'qwerty', or repeated characters.")
+    pattern_warning = has_common_pattern(password)
+    if pattern_warning:
+        print(Fore.RED + f"⚠️  Warning: {pattern_warning}")
 
     suggestions = get_password_feedback(password)
     if suggestions:
@@ -144,9 +151,6 @@ def main():
             print(f" - {suggestion}")
     else:
         print(Fore.GREEN + "\n✅ Your password is well-structured!")
-
-    if strength.startswith("Very Weak") or breached:
-        print(Fore.RED + "\n❗ Recommendation: Do NOT use this password. Please choose a stronger one.")
 
 if __name__ == "__main__":
     main()
