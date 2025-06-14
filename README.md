@@ -35,7 +35,7 @@ It includes **two versions**:
 ###  CLI Version
 | Weak Password Example | Strong Password Example |
 |-----------------------|-------------------------|
-| ![](https://github.com/deepthiii33/Brainwave_Matrix_Intern_advanced-password-checker/blob/main/CLI/CLI%20Weak%20Password.png) | ![](https://github.com/deepthiii33/Brainwave_Matrix_Intern_advanced-password-checker/blob/main/CLI/CLI%20Strong%20Password.png) |
+| ![](https://github.com/deepthiii33/Brainwave_Matrix_Intern_advanced-password-checker/blob/main/CLI/CLI_weak_pass.png) | ![](https://github.com/deepthiii33/Brainwave_Matrix_Intern_advanced-password-checker/blob/main/CLI/CLI_strong_pass.png) |
 
 ###  GUI Version
 | Single Password Check | Multiple Password Check |
